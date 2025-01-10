@@ -21,14 +21,19 @@
                     <i class="fa-solid fa-utensils"></i> <span>Canteen Transactions</span>
                 </a>
             </li>
-            <li>
+           <!-- <li>
                 <a href="employee_hdm.php">
                     <i class="fa-solid fa-suitcase-medical"></i> <span>Health Declaration</span>
                 </a>
-            </li>
+            </li> -->
             <li>
                 <a href="employee_attendance.php">
                     <i class="fa-solid  fa-address-book"></i> <span>Attendance</span>
+                </a>
+            </li>
+            <li>
+                <a href="downloads.php">
+                    <i class="fa-solid  fa-download"></i> <span>Downloads</span>
                 </a>
             </li>
             <!-- <li>

@@ -1,36 +1,16 @@
 <?php
 
-
-
-    function confirmQuery($string){
-
-        global $con;
-
-        if(!$string){
-
-            die("ERROR" . mysqli_error($con));
-        }
+function confirmQuery($string) {
+    global $con;
+    if(!$string) {
+        die("ERROR" . sqlsrv_errors());
     }
+}
 
-
-
-    function escape($string){
-
-        global $con;
-
-        return mysqli_real_escape_string($con, trim($string));
-
-    }
-
-
-
-    function dblEntryChkr($trans_Id){
-
-        global $con;
-
-        
-    }
-
+function escape($string) {
+    global $con;
+    return $string;
+}
 
 
 ?>

@@ -23,108 +23,101 @@
 
         
         // =================== Included ===================
-        if($_POST['action'] == 'user_info'){    
-
-            $query = "SELECT emp_info.Lname, emp_info.Fname, emp_info.Birthdate, employees.Image, ";
-            $query .="emp_desig.Pos_Id, emp_position.Emp_pos ";
-            $query .="FROM emp_info LEFT JOIN employees ";
-            $query .="ON emp_info.Emp_Id = employees.Emp_Id ";
-            $query .="LEFT JOIN emp_desig ";
-            $query .="ON emp_info.Emp_Id = emp_desig.Emp_Id ";
-            $query .="LEFT JOIN emp_position ";
-            $query .="ON emp_desig.Pos_Id = emp_position.Emp_Pos_Id ";
-            $query .="WHERE emp_info.Emp_Id = '$emp_Id' ";
-
-            $fetch = mysqli_query($con2, $query);
-
-            if($fetch){
-
-                $row = mysqli_fetch_assoc($fetch);
-
-                $fname      = $row['Fname'];
-                $lname      = $row['Lname'];
-                $image      = $row['Image'];
-                $emp_pos    = $row['Emp_pos'];
-                $bdate      = $row['Birthdate'];
-
-                $arr = array('Fname' => $fname, 'Lname' => $lname, 'Bdate' => $bdate, 'EmpPos' => $emp_pos, 'EmpImg' => $image);
-
-                echo json_encode($arr);
+        if ($_POST['action'] == 'user_info') {
+            
+            $query = "SELECT emp_info.Lname, emp_info.Fname, FORMAT(emp_info.Birthdate, 'yyyy-MM-dd') AS Birthdate, 
+                              emp_desig.Pos_Id, emp_position.Emp_pos 
+                      FROM Teipi_emp3.emp_info 
+                      LEFT JOIN Teipi_emp3.employees 
+                             ON emp_info.Emp_Id = employees.Emp_Id 
+                      LEFT JOIN Teipi_emp3.emp_desig 
+                             ON emp_info.Emp_Id = emp_desig.Emp_Id 
+                      LEFT JOIN Teipi_emp3.emp_position 
+                             ON emp_desig.Pos_Id = emp_position.Emp_Pos_Id 
+                      WHERE emp_info.Emp_Id = ?";
+            $params = array($emp_Id);
+            $stmt = sqlsrv_prepare($con2, $query, $params);
+        
+            if (!$stmt) {
+                die(print_r(sqlsrv_errors(), true));
+            }
+        
+            if (sqlsrv_execute($stmt)) {
+                $row = sqlsrv_fetch_array($stmt, SQLSRV_FETCH_ASSOC);
+                if ($row) {
+                    $arr = array(
+                        'Fname'  => $row['Fname'] ?? 'N/A',
+                        'Lname'  => $row['Lname'] ?? 'N/A',
+                        'Bdate'  => $row['Birthdate'] ?? '0000-00-00',
+                        'EmpPos' => $row['Emp_pos'] ?? 'Unknown',
+                        
+                    );
+        
+                    echo json_encode($arr);
+                } else {
+                    echo json_encode(['error' => 'No data found']);
+                }
+            } else {
+                die(print_r(sqlsrv_errors(), true));
             }
         }
+        
 
         
         // =================== Included ===================
-        else if($_POST['action'] == 'login'){   
-
-            if(isset($_POST['username']) && isset($_POST['password'])){
-
-                $username = escape($_POST['username']);
-                $password = escape($_POST['password']);
-
-                $query = "SELECT Emp_Acc_Id, Emp_Id, Username, `Password`, User_lvl_Id ";
-                $query .="FROM accounts WHERE Username = '$username' ";
-                $query .="AND `Status` = 1 ";
-
-                $fetch = mysqli_query($con4, $query);
-
-                $count = mysqli_num_rows($fetch);
-
-                if($count > 0){
-
-                    while($row = mysqli_fetch_array($fetch)){
-                        
-                        $db_user_Id         = escape($row['Emp_Acc_Id']);
-                        $db_emp_Id          = escape($row['Emp_Id']);
-                        $db_username		= escape($row['Username']);
-                        $db_user_password 	= escape($row['Password']);
-                        $db_user_lvl        = escape($row['User_lvl_Id']);
-
-                    }
-    
-                    if(isset($db_user_password)){
-    
-                        if(password_verify($password, $db_user_password)){
-    
-                            setcookie("EIMS_usr_Id", $db_user_Id, time()+3600 * 24 * 365, '/');
-                            setcookie("EIMS_emp_Id", $db_emp_Id, time()+3600 * 24 * 365, '/');
-                            setcookie("EIMS_usrname", $db_username, time()+3600 * 24 * 365, '/');
-                            setcookie("EIMS_usrlvl", $db_user_lvl, time()+3600 * 24 * 365, '/');
-                            
-                            echo json_encode('1');
-    
-                        }
-    
-                        else{
-    
-                            echo json_encode('2');
-    
-                        }
-    
-                    }
-    
-                    else{
-    
-                        echo json_encode('2');
-                    }
-    
+        if ($_POST['action'] == 'login') {   
+            if (isset($_POST['username']) && isset($_POST['password'])) {
+                $username = $_POST['username'];
+                $password = $_POST['password'];
+        
+                $query = "SELECT Emp_Acc_Id, Emp_Id, Username, Password, User_lvl_Id 
+                          FROM eims.accounts 
+                          WHERE Username = ? AND Status = 1";
+        
+                // Prepare the statement to prevent SQL injection
+                $params = array($username);
+                $stmt = sqlsrv_prepare($con3, $query, $params);
+        
+                if (!$stmt) {
+                    die(print_r(sqlsrv_errors(), true));
                 }
-    
-                else{
-    
-                    echo json_encode('4');
-                    
+        
+                if (sqlsrv_execute($stmt)) {
+                    if (sqlsrv_has_rows($stmt)) {
+                        while ($row = sqlsrv_fetch_array($stmt, SQLSRV_FETCH_ASSOC)) {
+                            $db_user_Id = $row['Emp_Acc_Id'];
+                            $db_emp_Id = $row['Emp_Id'];
+                            $db_username = $row['Username'];
+                            $db_user_password = $row['Password'];
+                            $db_user_lvl = $row['User_lvl_Id'];
+                        }
+        
+                        if (isset($db_user_password)) {
+                            if (password_verify($password, $db_user_password)) {
+                                setcookie("EIMS_usr_Id", $db_user_Id, time() + 3600 * 24 * 365, '/');
+                                setcookie("EIMS_emp_Id", $db_emp_Id, time() + 3600 * 24 * 365, '/');
+                                setcookie("EIMS_usrname", $db_username, time() + 3600 * 24 * 365, '/');
+                                setcookie("EIMS_usrlvl", $db_user_lvl, time() + 3600 * 24 * 365, '/');
+        
+                                echo json_encode('1'); // Successful login
+                            } else {
+                                echo json_encode('2'); // Password mismatch
+                            }
+                        } else {
+                            echo json_encode('2'); // Password not found
+                        }
+                    } else {
+                        echo json_encode('4'); // User not found or inactive
+                    }
+                } else {
+                    die(print_r(sqlsrv_errors(), true));
                 }
+            } else {
+                echo json_encode('3'); // Missing username or password
             }
-
-            else{
-    
-                echo json_encode('3');
-                
-            }
-
         }
-
+        
+        
         
 
         // =================== Included ===================
@@ -187,79 +180,74 @@
 
 
         // ====================== Included =================
-        else if($_POST['action'] == 'total_credits'){
-
-            if(isset($_POST['datefil1']) && isset($_POST['datefil2'])){
-
+        else if ($_POST['action'] == 'total_credits') {
+            if (isset($_POST['datefil1']) && isset($_POST['datefil2'])) {
                 $date_fil1 = $_POST['datefil1'];
                 $date_fil2 = $_POST['datefil2'];
-
-                $query ="SELECT SUM(Grand_Total) as Total FROM transactions ";
-                $query .="WHERE Status = 1 AND Pay_Method = 'Credit' ";
-
-                if($_POST['datefil1'] != '' && $_POST['datefil2'] != ''){
-
-                    $date_fil1 = $_POST['datefil1'];
-                    $date_fil2 = $_POST['datefil2'];
-
-                    $query .="AND Date_added BETWEEN '$date_fil1' AND '$date_fil2' ";
+        
+                $query = "SELECT SUM(Grand_Total) AS Total 
+                          FROM canteen2.transactions 
+                          WHERE Status = 1 AND Pay_Method = 'Credit'";
+        
+                if ($date_fil1 != '' && $date_fil2 != '') {
+                    $query .= " AND Date_added BETWEEN ? AND ?";
+                    $params = array($date_fil1, $date_fil2);
+                } else {
+                    $query .= " AND CAST(Date_added AS DATE) = CAST(GETDATE() AS DATE)";
+                    $params = array();
                 }
-
-                else{
-
-                    $query .="AND Date_added = curdate() ";
-                }
-
-                $query .="AND Emp_Id = '$emp_Id' ";
-
-                $fetch = mysqli_query($con, $query);
-
-                if($fetch){
-
-                    $row = mysqli_fetch_assoc($fetch);
-
-                    $total = $row['Total'];
-
+        
+                $query .= " AND Emp_Id = ?";
+                $params[] = $emp_Id;
+        
+                $fetch = sqlsrv_query($con, $query, $params);
+        
+                if ($fetch) {
+                    $row = sqlsrv_fetch_array($fetch, SQLSRV_FETCH_ASSOC);
+        
+                    $total = $row['Total'] ?? 0; // Default to 0 if no rows match
+        
                     echo json_encode(number_format($total, 2));
                 }
             }
         }
+        
 
         
         
         // =============== Included ==============
-        else if($_POST['action'] == 'count_c_transc'){
-
-            $query ="SELECT COUNT(Trans_Id) as Total ";
-            $query .="FROM transactions ";
-            $query .="WHERE Status = 1 ";
-            
-            if($_POST['datefil1'] != '' && $_POST['datefil2'] != ''){
-
+        else if ($_POST['action'] == 'count_c_transc') {
+            $query = "SELECT COUNT(Trans_Id) AS Total 
+                      FROM canteen2.transactions 
+                      WHERE Status = 1";
+        
+            $params = [];
+        
+            if (!empty($_POST['datefil1']) && !empty($_POST['datefil2'])) {
                 $date_fil1 = $_POST['datefil1'];
                 $date_fil2 = $_POST['datefil2'];
-
-                $query .="AND Date_added BETWEEN '$date_fil1' AND '$date_fil2' ";
+        
+                $query .= " AND Date_added BETWEEN ? AND ?";
+                $params[] = $date_fil1;
+                $params[] = $date_fil2;
+            } else {
+                $query .= " AND CAST(Date_added AS DATE) = CAST(GETDATE() AS DATE)";
             }
-
-            else{
-
-                $query .="AND Date_added = curdate() ";
-            }
-
-            $query .="AND Emp_Id = '$emp_Id' ";
-
-            $fetch = mysqli_query($con, $query);
-
-            if($fetch){
-
-                $row = mysqli_fetch_assoc($fetch);
-
-                $total = $row['Total'];
-
+        
+            $query .= " AND Emp_Id = ?";
+            $params[] = $emp_Id;
+        
+            $fetch = sqlsrv_query($con, $query, $params);
+        
+            if ($fetch) {
+                $row = sqlsrv_fetch_array($fetch, SQLSRV_FETCH_ASSOC);
+        
+                $total = $row['Total'] ?? 0; // Handle null case
+        
                 echo json_encode($total);
             }
         }
+        
         
 
 
@@ -287,43 +275,39 @@
 
 
         // ================= Included =================
-        else if($_POST['action'] == 'total_cash'){
-
-            if(isset($_POST['datefil1']) && isset($_POST['datefil2'])){
-
+        else if ($_POST['action'] == 'total_cash') {
+            if (isset($_POST['datefil1']) && isset($_POST['datefil2'])) {
                 $date_fil1 = $_POST['datefil1'];
                 $date_fil2 = $_POST['datefil2'];
-
-                $query ="SELECT SUM(Grand_Total) as Total FROM transactions ";
-                $query .="WHERE Status = 1 AND Pay_Method = 'Cash' ";
-
-                if($_POST['datefil1'] != '' && $_POST['datefil2'] != ''){
-
-                    $date_fil1 = $_POST['datefil1'];
-                    $date_fil2 = $_POST['datefil2'];
-
-                    $query .="AND Date_added BETWEEN '$date_fil1' AND '$date_fil2' ";
+        
+                $query = "SELECT SUM(Grand_Total) AS Total 
+                          FROM canteen2.transactions 
+                          WHERE Status = 1 AND Pay_Method = 'Cash'";
+        
+                if ($date_fil1 != '' && $date_fil2 != '') {
+                    $query .= " AND Date_added BETWEEN ? AND ?";
+                    $params = array($date_fil1, $date_fil2);
+                } else {
+                    $query .= " AND CAST(Date_added AS DATE) = CAST(GETDATE() AS DATE)";
+                    $params = array();
                 }
-
-                else{
-
-                    $query .="AND Date_added = curdate() ";
-                }
-
-                $query .="AND Emp_Id = '$emp_Id' ";
-
-                $fetch = mysqli_query($con, $query);
-
-                if($fetch){
-
-                    $row = mysqli_fetch_assoc($fetch);
-
-                    $total = $row['Total'];
-
+        
+                $query .= " AND Emp_Id = ?";
+        
+                $params[] = $emp_Id;
+        
+                $fetch = sqlsrv_query($con, $query, $params);
+        
+                if ($fetch) {
+                    $row = sqlsrv_fetch_array($fetch, SQLSRV_FETCH_ASSOC);
+        
+                    $total = $row['Total'] ?? 0; // Handle null case
+        
                     echo json_encode(number_format($total, 2));
                 }
             }
         }
+        
 
 
 
@@ -470,150 +454,104 @@
 
 
         // ===================== Dashboard Functions =======================
-        else if($_POST['action'] == 'discount_cards'){
+        else if ($_POST['action'] == 'discount_cards') {
 
-            $query = "SELECT Disc_Id, Disc_name, Disc_amount ";
-            $query .="FROM discounts ";
-            $query .="WHERE Status = 1 ";
-
-            $fetch = mysqli_query($con, $query);
-
-            $count = mysqli_num_rows($fetch);
-
-            // ================= Cutoff Checker =================
-                if($_POST['cutoffval'] != ''){
-                    
-                    $cutoff_val = $_POST['cutoffval'];
-                }
-                
-                else{
-                    
-                    $cutoff_val = '';
-                }
-            // ================= Cutoff Checker END =============
-
-            $output ='';
-
-            if($fetch){
-
-                while($row = mysqli_fetch_assoc($fetch)){ //jm
-                    
-                    $disc_Id        = $row['Disc_Id'];
-                    $disc_name      = $row['Disc_name'];
-                    $disc_amount    = $row['Disc_amount'];
-                    
-                    
-                    $query2 = "SELECT transactions.Trans_Id, trans_disc.Trans_D_Id ";
-                    $query2 .="FROM transactions ";
-                    $query2 .="LEFT JOIN trans_disc ";
-                    $query2 .="ON transactions.Trans_Id = trans_disc.Trans_Id ";
-                    $query2 .="WHERE transactions.Status = 1 ";
-                    $query2 .="AND transactions.Emp_Id = '$emp_Id' AND trans_disc.Disc_Id = '$disc_Id' ";
-                    
-                    if($cutoff_val == '1st'){
-
+            $query = "SELECT Disc_Id, Disc_name, Disc_amount 
+                      FROM discounts 
+                      WHERE Status = 1";
+        
+            $stmt = sqlsrv_query($con, $query);
+        
+            $cutoff_val = $_POST['cutoffval'] ?? ''; // Default to an empty string if not provided
+        
+            $output = '';
+        
+            if ($stmt) {
+                while ($row = sqlsrv_fetch_array($stmt, SQLSRV_FETCH_ASSOC)) {
+        
+                    $disc_Id = $row['Disc_Id'];
+                    $disc_name = $row['Disc_name'];
+                    $disc_amount = $row['Disc_amount'];
+        
+                    $query2 = "SELECT transactions.Trans_Id, trans_disc.Trans_D_Id 
+                               FROM transactions 
+                               LEFT JOIN trans_disc 
+                               ON transactions.Trans_Id = trans_disc.Trans_Id 
+                               WHERE transactions.Status = 1 
+                               AND transactions.Emp_Id = ? 
+                               AND trans_disc.Disc_Id = ?";
+        
+                    $params2 = [$emp_Id, $disc_Id];
+        
+                    // Add conditions based on cutoff value
+                    if ($cutoff_val == '1st') {
                         $first_date = date('Y-m-01', strtotime("now"));
-                        $last_date  = date('Y-m-d', strtotime('+14 days', strtotime($first_date)));
-
-                        $query2 .="AND transactions.Date_added BETWEEN '$first_date' AND '$last_date' ";
-    
-                    }
-    
-                    else if($cutoff_val == '2nd'){
-    
+                        $last_date = date('Y-m-d', strtotime('+14 days', strtotime($first_date)));
+                        $query2 .= " AND transactions.Date_added BETWEEN ? AND ?";
+                        array_push($params2, $first_date, $last_date);
+                    } elseif ($cutoff_val == '2nd') {
                         $date = strtotime("now");
-    
-                        $no_of_days = cal_days_in_month(CAL_GREGORIAN, date('m', strtotime("now")), date('Y', strtotime("now")) );
-    
-                        $last_date = strtotime(date("Y-m-t", $date ));
-      
+                        $no_of_days = cal_days_in_month(CAL_GREGORIAN, date('m', $date), date('Y', $date));
+                        $last_date = strtotime(date("Y-m-t", $date));
                         $day = date("Y-m-d", $last_date);
-    
-                        if($no_of_days == '31'){
-    
+        
+                        if ($no_of_days == 31) {
                             $first_date = date('Y-m-d', strtotime('-15 days', strtotime($day)));
-                        }
-    
-                        else if($no_of_days == '30'){
-    
+                        } elseif ($no_of_days == 30) {
                             $first_date = date('Y-m-d', strtotime('-14 days', strtotime($day)));
-                        }
-    
-                        else if($no_of_days == '28'){
-    
+                        } elseif ($no_of_days == 28) {
                             $first_date = date('Y-m-d', strtotime('-12 days', strtotime($day)));
                         }
-
-                        $query2 .="AND transactions.Date_added BETWEEN '$first_date' AND '$day' ";
-    
-                    }
-
-                    else if($cutoff_val == 'Today'){
-
-                        $query2 .="AND transactions.Date_added = curdate() ";
-                    }
-
-                    else if($cutoff_val == 'date_range'){
-
-                        if($_POST['date1'] != '' && $_POST['date2'] != ''){
-
+        
+                        $query2 .= " AND transactions.Date_added BETWEEN ? AND ?";
+                        array_push($params2, $first_date, $day);
+                    } elseif ($cutoff_val == 'Today') {
+                        $today = date('Y-m-d');
+                        $query2 .= " AND transactions.Date_added = ?";
+                        array_push($params2, $today);
+                    } elseif ($cutoff_val == 'date_range') {
+                        if (!empty($_POST['date1']) && !empty($_POST['date2'])) {
                             $date1 = $_POST['date1'];
                             $date2 = $_POST['date2'];
-
-                            $query2 .="AND transactions.Date_added BETWEEN '$date1' AND '$date2' ";
+                            $query2 .= " AND transactions.Date_added BETWEEN ? AND ?";
+                            array_push($params2, $date1, $date2);
                         }
+                    } else {
+                        $query2 .= " AND YEAR(transactions.Date_added) = YEAR(GETDATE()) 
+                                     AND MONTH(transactions.Date_added) = MONTH(GETDATE())";
                     }
-
-                    else{
-
-                        $query2 .= "AND YEAR(transactions.Date_added) = YEAR(curdate()) AND MONTH(transactions.Date_added) = MONTH(curdate())"; //jm
-
-                    }
-
-                    // $query2 .="AND Date_added ";
-                    
-                    $fetch2 = mysqli_query($con, $query2);
-                    
-                    if($fetch2){
-                        
+        
+                    $stmt2 = sqlsrv_query($con, $query2, $params2);
+        
+                    if ($stmt2) {
                         $grand_total = 0;
-
                         $n = 0;
-
-                        while($row2 = mysqli_fetch_assoc($fetch2)){
-
+        
+                        while ($row2 = sqlsrv_fetch_array($stmt2, SQLSRV_FETCH_ASSOC)) {
                             $grand_total += $disc_amount;
-
                             $n++;
-
                         }
-                        
                     }
-
-                    if($count > 3){
-
-                        $output .='<div class="col-lg-4 border-light text-center">';
-                    
+        
+                    if (sqlsrv_num_rows($stmt) > 3) {
+                        $output .= '<div class="col-lg-4 border-light text-center">';
+                    } else {
+                        $output .= '<div class="col-lg border-light text-center">';
                     }
-
-                    else{
-
-                        $output .='<div class="col-lg border-light text-center">'; //jm
-                    }
-                    
-                    $output .='<div class="card">';
-                    $output .='<div class="card-body">';
-                    // $output .='<h4 class="text-white mb-0 font-weight-bold"> <span>P'.number_format($grand_total, 2).'</span></h4><br>';
-                    $output .='<h3 class="text-white mb-0 font-weight-bold"> <span>'.$n.'</span></h3><br>';
-                    $output .='<p class="mb-0 text-info small-font">'.$disc_name.' consumed</p>';
-                    $output .='</div>';
-                    $output .='</div>';
-                    $output .='</div>';
+        
+                    $output .= '<div class="card">';
+                    $output .= '<div class="card-body">';
+                    $output .= '<h3 class="text-white mb-0 font-weight-bold"> <span>' . $n . '</span></h3><br>';
+                    $output .= '<p class="mb-0 text-info small-font">' . $disc_name . ' consumed</p>';
+                    $output .= '</div>';
+                    $output .= '</div>';
+                    $output .= '</div>';
                 }
             }
-
+        
             echo json_encode($output);
         }
+        
         // ===================== Dashboard Functions END ===================
 
         
@@ -682,197 +620,141 @@
 
 
 
-        else if($_POST['action'] == 'cred_summ_chart'){
+        else if ($_POST['action'] == 'cred_summ_chart') {
 
-            $cutoff_val = array();
-
+            $cutoff_val = [];
+        
             // ======================= First Cutoff ====================
-                $first_date1 = date('Y-m-01', strtotime("now"));
-                $last_date   = date('Y-m-d', strtotime('+14 days', strtotime($first_date1)));
-
-                $query1 = "SELECT Trans_Id, SUM(Grand_Total) as Total ";
-                $query1 .="FROM transactions ";
-                $query1 .="WHERE Emp_Id = '$emp_Id' AND Status = 1 ";
-                $query1 .="AND Date_added BETWEEN '$first_date1' AND '$last_date' ";
-                $query1 .="AND Pay_Method = 'Credit' ";
-
-                $fetch1 = mysqli_query($con, $query1);
-
-                if($fetch1){
-
-                    $row1 = mysqli_fetch_assoc($fetch1);
-
-                    $total_1 = $row1['Total'];
-
-                    array_push($cutoff_val, $total_1);
-                }
+            $first_date1 = date('Y-m-01', strtotime("now"));
+            $last_date1 = date('Y-m-d', strtotime('+14 days', strtotime($first_date1)));
+        
+            $query1 = "SELECT SUM(Grand_Total) AS Total 
+                       FROM transactions 
+                       WHERE Emp_Id = ? AND Status = 1 
+                       AND Date_added BETWEEN ? AND ? 
+                       AND Pay_Method = 'Credit'";
+        
+            $params1 = [$emp_Id, $first_date1, $last_date1];
+            $stmt1 = sqlsrv_query($con, $query1, $params1);
+        
+            if ($stmt1) {
+                $row1 = sqlsrv_fetch_array($stmt1, SQLSRV_FETCH_ASSOC);
+                $total_1 = $row1['Total'] ?? 0; // Default to 0 if NULL
+                array_push($cutoff_val, $total_1);
+            } else {
+                $total_1 = 0; // Default to 0 if query fails
+                array_push($cutoff_val, $total_1);
+            }
             // ======================= First Cutoff END ================
-
-            // ======================= Second Cutoff =========================
-                $date = strtotime("now");
-
-                $no_of_days = cal_days_in_month(CAL_GREGORIAN, date('m', strtotime("now")), date('Y', strtotime("now")) );
-
-                $last_date = strtotime(date("Y-m-t", $date ));
-
-                $day = date("Y-m-d", $last_date);
-
-                if($no_of_days == '31'){
-
-                    $first_date2 = date('Y-m-d', strtotime('-15 days', strtotime($day)));
-                }
-
-                else if($no_of_days == '30'){
-
-                    $first_date2 = date('Y-m-d', strtotime('-14 days', strtotime($day)));
-                }
-
-                else if($no_of_days == '28'){
-
-                    $first_date2 = date('Y-m-d', strtotime('-12 days', strtotime($day)));
-                }
-
-                $query2 = "SELECT Trans_Id, SUM(Grand_Total) as Total ";
-                $query2 .="FROM transactions ";
-                $query2 .="WHERE Emp_Id = '$emp_Id' AND Status = 1 ";
-                $query2 .="AND Date_added BETWEEN '$first_date2' AND '$day' ";
-                $query2 .="AND Pay_Method = 'Credit' ";
-
-                $fetch2 = mysqli_query($con, $query2);
-
-                if($fetch2){
-
-                    $row2 = mysqli_fetch_assoc($fetch2);
-
-                    $total_2 = $row2['Total'];
-
-                    array_push($cutoff_val, $total_2);
-                }
-            // ======================= Second Cutoff END =====================
-
+        
+            // ======================= Second Cutoff ===================
+            $date = strtotime("now");
+            $no_of_days = cal_days_in_month(CAL_GREGORIAN, date('m', $date), date('Y', $date));
+            $last_date2 = strtotime(date("Y-m-t", $date)); // Last day of the month
+            $day = date("Y-m-d", $last_date2);
+        
+            if ($no_of_days == 31) {
+                $first_date2 = date('Y-m-d', strtotime('-15 days', strtotime($day)));
+            } elseif ($no_of_days == 30) {
+                $first_date2 = date('Y-m-d', strtotime('-14 days', strtotime($day)));
+            } elseif ($no_of_days == 28) {
+                $first_date2 = date('Y-m-d', strtotime('-12 days', strtotime($day)));
+            }
+        
+            $query2 = "SELECT SUM(Grand_Total) AS Total 
+                       FROM transactions 
+                       WHERE Emp_Id = ? AND Status = 1 
+                       AND Date_added BETWEEN ? AND ? 
+                       AND Pay_Method = 'Credit'";
+        
+            $params2 = [$emp_Id, $first_date2, $day];
+            $stmt2 = sqlsrv_query($con, $query2, $params2);
+        
+            if ($stmt2) {
+                $row2 = sqlsrv_fetch_array($stmt2, SQLSRV_FETCH_ASSOC);
+                $total_2 = $row2['Total'] ?? 0; // Default to 0 if NULL
+                array_push($cutoff_val, $total_2);
+            } else {
+                $total_2 = 0; // Default to 0 if query fails
+                array_push($cutoff_val, $total_2);
+            }
+            // ======================= Second Cutoff END ================
+        
+            // Prepare JSON response
             $arr = array(
                 'Total1' => number_format($total_1, 2),
                 'Total2' => number_format($total_2, 2),
                 'DataSet' => $cutoff_val
             );
-
+        
             echo json_encode($arr);
-
         }
+        
 
 
 
-        else if($_POST['action'] == 'health_dec_temp'){
+        
 
-            // =================== Getting Employee ID Number ====================
-                $query0 = "SELECT Emp_Num FROM employees WHERE Emp_Id = '$emp_Id' ";
-                $fetch0 = mysqli_query($con2, $query0);
 
-                if($fetch0){
+        else if ($_POST['action'] == 'weekly_summ_chart') {
 
-                    $row0 = mysqli_fetch_assoc($fetch0);
-
-                    $emp_num = substr($row0['Emp_Num'], 2);
-
+            // Calculate dates and day names for the current week
+            $dates = [];
+            $days = [];
+            $weekDays = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+            foreach ($weekDays as $day) {
+                $dates[] = date('Y-m-d', strtotime("$day this week"));
+                $days[] = date('l', strtotime("$day this week"));
+            }
+        
+            $cash_dataset = [];
+            $credit_dataset = [];
+        
+            foreach ($dates as $date) {
+                // ================== Cash Dataset ====================
+                $query1 = "SELECT SUM(Grand_Total) AS Total1 
+                           FROM transactions 
+                           WHERE Date_added = ? AND Status = 1 AND Pay_Method = 'Cash' 
+                           AND Emp_Id = ?";
+        
+                $params1 = [$date, $emp_Id];
+                $stmt1 = sqlsrv_query($con, $query1, $params1);
+        
+                if ($stmt1) {
+                    $row1 = sqlsrv_fetch_array($stmt1, SQLSRV_FETCH_ASSOC);
+                    $total_cash = $row1['Total1'] ?? 0; // Default to 0 if NULL
+                    array_push($cash_dataset, $total_cash);
+                } else {
+                    array_push($cash_dataset, 0); // Default to 0 if query fails
                 }
-            // =================== Getting Employee ID Number END ================
-
-            $query = "SELECT Temperature, `Status` ";
-            $query .="FROM transactions ";
-            $query .="WHERE Date_added = curdate() AND Emp_Num = '$emp_num' and randSalt1 = 1 ";
-
-            $fetch = mysqli_query($con3, $query);
-
-            if($fetch){
-
-                $row = mysqli_fetch_assoc($fetch);
-
-                $temperature = $row['Temperature'];
-                $temp_stat   = $row['Status'];
-
-                $arr = array(
-                    'TempVal' => $temperature,
-                    'TempStat' => $temp_stat
-                );
-
-                echo json_encode($arr);
-            }
-        }
-
-
-
-        else if($_POST['action'] == 'weekly_summ_chart'){
-
-            $monday_d     = date('Y-m-d', strtotime('monday this week'));
-            $tuesday_d    = date('Y-m-d', strtotime('tuesday this week'));
-            $wednesday_d  = date('Y-m-d', strtotime('wednesday this week'));
-            $thursday_d   = date('Y-m-d', strtotime('thursday this week'));
-            $friday_d     = date('Y-m-d', strtotime('friday this week'));
-            $saturday_d   = date('Y-m-d', strtotime('saturday this week'));
-            // $sunday_d     = date('Y-m-d', strtotime('sunday this week'));
-
-            $monday     = date('l', strtotime('monday this week'));
-            $tuesday    = date('l', strtotime('tuesday this week'));
-            $wednesday  = date('l', strtotime('wednesday this week'));
-            $thursday   = date('l', strtotime('thursday this week'));
-            $friday     = date('l', strtotime('friday this week'));
-            $saturday   = date('l', strtotime('saturday this week'));
-            // $sunday     = date('l', strtotime('sunday this week'));
-
-            $days   = array($monday, $tuesday, $wednesday, $thursday, $friday, $saturday);
-            $dates  = array($monday_d, $tuesday_d, $wednesday_d, $thursday_d, $friday_d, $saturday_d); 
-
-
-            $cash_dataset   = array();
-            $credit_dataset = array();
-
-            foreach($dates as $date){
-
+        
                 // ================== Credit Dataset ====================
-                    $query1 = "SELECT SUM(Grand_Total) as Total1 ";
-                    $query1 .="FROM transactions ";
-                    $query1 .="WHERE Date_added = '$date' AND Status = 1 AND Pay_Method = 'Cash' ";
-                    $query1 .="AND Emp_Id = '$emp_Id' ";
-
-                    $fetch1 = mysqli_query($con, $query1);
-
-                    if($fetch1){
-
-                        $row1 = mysqli_fetch_assoc($fetch1);
-
-                        $total_cash = $row1['Total1'];
-
-                        array_push($cash_dataset, $total_cash);
-                    }
-                // ================== Credit Dataset END ================
-
-                // ================== Credit Dataset ====================
-                    $query2 = "SELECT SUM(Grand_Total) as Total2 ";
-                    $query2 .="FROM transactions ";
-                    $query2 .="WHERE Date_added = '$date' AND Status = 1 AND Pay_Method = 'Credit' ";
-                    $query2 .="AND Emp_Id = '$emp_Id' ";
-
-                    $fetch2 = mysqli_query($con, $query2);
-
-                    if($fetch2){
-
-                        $row2 = mysqli_fetch_assoc($fetch2);
-
-                        $total_credit = $row2['Total2'];
-
-                        array_push($credit_dataset, $total_credit);
-                    }
-                // ================== Credit Dataset END ================
+                $query2 = "SELECT SUM(Grand_Total) AS Total2 
+                           FROM transactions 
+                           WHERE Date_added = ? AND Status = 1 AND Pay_Method = 'Credit' 
+                           AND Emp_Id = ?";
+        
+                $params2 = [$date, $emp_Id];
+                $stmt2 = sqlsrv_query($con, $query2, $params2);
+        
+                if ($stmt2) {
+                    $row2 = sqlsrv_fetch_array($stmt2, SQLSRV_FETCH_ASSOC);
+                    $total_credit = $row2['Total2'] ?? 0; // Default to 0 if NULL
+                    array_push($credit_dataset, $total_credit);
+                } else {
+                    array_push($credit_dataset, 0); // Default to 0 if query fails
+                }
             }
-
+        
             $arr = array(
                 'DaysArr' => $days,
                 'CashArr' => $cash_dataset,
                 'CreditArr' => $credit_dataset
             );
-
+        
             echo json_encode($arr);
         }
+        
 
 
 
@@ -1060,88 +942,67 @@
 
 
 
-        else if($_POST['action'] == 'credit_info'){
-
-            $query = "SELECT COUNT(Credit_Id) as Total ";
-            $query .="FROM emp_credits ";
-            $query .="WHERE Emp_Id = '$emp_Id' ";
-            
-            $fetch = mysqli_query($con, $query);
-
-            if($fetch){
-
-                $output ='';
-
-                $row = mysqli_fetch_assoc($fetch);
-
+        if ($_POST['action'] == 'credit_info') {
+            $query = "SELECT COUNT(Credit_Id) AS Total 
+                      FROM canteen2.emp_credits 
+                      WHERE Emp_Id = '$emp_Id'";
+        
+            $fetch = sqlsrv_query($con, $query);
+        
+            if ($fetch) {
+                $output = '';
+        
+                $row = sqlsrv_fetch_array($fetch, SQLSRV_FETCH_ASSOC);
                 $total = $row['Total'];
-
-                if($total == 0){
-
-
-                    // ================ Get Hire Date ================
-                        $query2 = "SELECT Date_hired FROM emp_desig WHERE Emp_Id = '$emp_Id' ";
-                        $fetch2 = mysqli_query($con2, $query2);
-
-                        confirmQuery($fetch2);
-
-                        if($fetch2){
-
-                            $row2 = mysqli_fetch_assoc($fetch2);
-
-                            $date_hired = $row2['Date_hired'];
-
-                            $one_month  = date('Y-m-d', strtotime($date_hired." + 1 month"));
-                            $currdate   = date('Y-m-d', strtotime("now"));
-
-                            $datetime1 = date_create($one_month);
-                            $datetime2 = date_create($currdate);
-                            
-                            // Calculates the difference between DateTime objects
-                            $interval = date_diff($datetime2, $datetime1);
-
-                            $days_left = (int)$interval->format('%R%a');
-
-                        }
-                    // ================ Get Hire Date END ============
-
-                    if($days_left < 0){
-
-                        $output .='<div class="card-header">Credit Information</div>';
-                        $output .='<div class="card-body d-flex align-items-center" ><br>';
-                        $output .='<span class="fa fa-close p-2" style="background:red; border-radius:100%; font-size:20px;"></span>&nbsp&nbsp';
-                        $output .='<h6>Not Allowed for Credits</h6>';
-                        $output .='</div>';
+        
+                if ($total == 0) {
+                    // Get Hire Date
+                    $query2 = "SELECT Date_hired 
+                               FROM canteen2.emp_desig 
+                               WHERE Emp_Id = '$emp_Id'";
+        
+                    $fetch2 = sqlsrv_query($con, $query2);
+        
+                    if ($fetch2) {
+                        $row2 = sqlsrv_fetch_array($fetch2, SQLSRV_FETCH_ASSOC);
+                        $date_hired = $row2['Date_hired'];
+        
+                        $one_month = date('Y-m-d', strtotime($date_hired . " + 1 month"));
+                        $currdate = date('Y-m-d', strtotime("now"));
+        
+                        $datetime1 = date_create($one_month);
+                        $datetime2 = date_create($currdate);
+        
+                        $interval = date_diff($datetime2, $datetime1);
+                        $days_left = (int)$interval->format('%R%a');
                     }
-
-                    else{
-
-                        $output .='<div class="card-header">Credit Information</div>';
-                        $output .='<div class="card-body" ><br>';
-                        $output .='<h3> <span class="text-warning">'.$days_left.'</span> day/s</h3>';
-                        $output .='<p class="text-muted">before you can transact through credit</p>';
-                        $output .='</div>';
-                        
+        
+                    // Output based on remaining days
+                    if ($days_left < 0) {
+                        $output .= '<div class="card-header">Credit Information</div>';
+                        $output .= '<div class="card-body d-flex align-items-center"><br>';
+                        $output .= '<span class="fa fa-close p-2" style="background:red; border-radius:100%; font-size:20px;"></span>&nbsp&nbsp';
+                        $output .= '<h6>Not Allowed for Credits</h6>';
+                        $output .= '</div>';
+                    } else {
+                        $output .= '<div class="card-header">Credit Information</div>';
+                        $output .= '<div class="card-body"><br>';
+                        $output .= '<h3><span class="text-warning">' . $days_left . '</span> day/s</h3>';
+                        $output .= '<p class="text-muted">before you can transact through credit</p>';
+                        $output .= '</div>';
                     }
-
-
+                } else {
+                    $output .= '<div class="card-header">Credit Information</div>';
+                    $output .= '<div class="card-body d-flex align-items-center"><br>';
+                    $output .= '<span class="fa fa-check p-2" style="background:green; border-radius:100%; font-size:25px;"></span>&nbsp&nbsp';
+                    $output .= '<h6>Allowed for Credits</h6>';
+                    $output .= '</div>';
                 }
-
-                else{
-
-                    $output .='<div class="card-header">Credit Information</div>';
-                    $output .='<div class="card-body d-flex align-items-center" ><br>';
-                    $output .='<span class="fa fa-check p-2" style="background:green; border-radius:100%; font-size:25px;"></span>&nbsp&nbsp';
-                    $output .='<h6>Allowed for Credits</h6>';
-                    $output .='</div>';
-                }
-
-                // $output .=$total;
-
+        
                 echo json_encode($output);
             }
         }
-
+        
     }
 
 ?>

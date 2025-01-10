@@ -37,5 +37,21 @@ if (!$con2) {
 }
 
 
+// ============ Teipi_emp3 Database ============
+$serverName3 = "IMSERVER";
+$connectionOptions3 = array(
+    "Database" => "eims",
+    "Uid" => "sa",
+    "PWD" => "IS@Admin"
+);
+
+$con3 = sqlsrv_connect($serverName3, $connectionOptions3);
+
+if (!$con3) {
+    die(print_r(sqlsrv_errors(), true));
+} else {
+    //echo 'Connect success to Teipi_emp3 database';
+}
+
 
 ?>

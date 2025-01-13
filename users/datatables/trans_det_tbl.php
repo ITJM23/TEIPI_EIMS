@@ -1,79 +1,93 @@
 <?php
 
-    include "../includes/db.php";
-    include "../includes/functions.php";
+include "../includes/db.php";
+include "../includes/functions.php";
 
-    $column = array("Item_name", "Quantity");
+$column = array("Item_name", "Quantity");
 
-    $query ="SELECT trans_details.Quantity, items.Item_name, items.Price ";
-    $query .="FROM trans_details LEFT JOIN items ";
-    $query .="ON trans_details.Item_Id = items.Item_Id ";
-    $query .="WHERE NOT Trans_det_Id = '' ";
+// Base query
+$query = "SELECT trans_details.Quantity, items.Item_name, items.Price 
+          FROM canteen2.trans_details 
+          LEFT JOIN canteen2.items ON trans_details.Item_Id = items.Item_Id 
+          WHERE NOT Trans_det_Id = '' ";
 
-    if($_POST['transid'] != ''){
+// Add condition for transaction ID
+if ($_POST['transid'] != '') {
+    $trans_Id = $_POST['transid'];
+    $query .= "AND trans_details.Trans_Id = ? ";
+    $params[] = $trans_Id;
+} else {
+    $params = [];
+}
 
-        $trans_Id = $_POST['transid'];
+// Add search filter
+if (isset($_POST["search"]["value"])) {
+    $searchValue = $_POST["search"]["value"];
+    $query .= "AND items.Item_name LIKE ? ";
+    $params[] = "%$searchValue%";
+}
 
-        $query .="AND trans_details.Trans_Id = '$trans_Id' ";
-    }
+// Add order clause
+if (isset($_POST["order"])) {
+    $query .= "ORDER BY " . $column[$_POST['order']['0']['column']] . " " . $_POST['order']['0']['dir'] . " ";
+} else {
+    $query .= "ORDER BY trans_details.Trans_det_Id DESC ";
+}
 
+// Add pagination
+$query1 = '';
+if ($_POST["length"] != -1) {
+    $query1 = "OFFSET ? ROWS FETCH NEXT ? ROWS ONLY";
+    $params[] = intval($_POST['start']);
+    $params[] = intval($_POST['length']);
+}
 
-    if(isset($_POST["search"]["value"])){											
+// Count total records
+$countQuery = "SELECT COUNT(*) AS TotalRecords 
+               FROM canteen2.trans_details 
+               LEFT JOIN canteen2.items ON trans_details.Item_Id = items.Item_Id 
+               WHERE NOT Trans_det_Id = '' ";
+if ($_POST['transid'] != '') {
+    $countQuery .= "AND trans_details.Trans_Id = ? ";
+    $countParams = [$trans_Id];
+} else {
+    $countParams = [];
+}
+$countStmt = sqlsrv_query($con, $countQuery, $countParams);
+$countResult = sqlsrv_fetch_array($countStmt, SQLSRV_FETCH_ASSOC);
+$count = $countResult['TotalRecords'];
 
-        $query .='AND items.Item_name LIKE "%'.$_POST["search"]["value"].'%" ';
-    }
+// Execute main query
+$fullQuery = $query . $query1;
+$stmt = sqlsrv_query($con, $fullQuery, $params);
 
-    if(isset($_POST["order"])){
+confirmQuery($stmt);
 
-        $query .='ORDER BY '.$column[$_POST['order']['0']['column']].' '.$_POST['order']['0']['dir']. ' ';
-    } 
+$data = array();
+while ($row = sqlsrv_fetch_array($stmt, SQLSRV_FETCH_ASSOC)) {
+    $item_name  = $row['Item_name'];
+    $item_qty   = $row['Quantity'];
+    $item_price = $row['Price'];
 
-    else{
+    $sub_array = array();
 
-        $query .='ORDER BY trans_details.Trans_det_Id DESC ';
-    }
+    $sub_array[] = substr($item_name, 0, 10) . "...";
+    $sub_array[] = $item_qty;
 
-    $query1 ='';
+    $g_total = $item_price * $item_qty;
 
-    if($_POST["length"] != -1){
+    $sub_array[] = number_format($g_total, 2);
 
-        $query1 = 'LIMIT ' . $_POST['start'] . ', ' . $_POST['length'];
-    }
+    $data[] = $sub_array;
+}
 
-    $count = mysqli_num_rows(mysqli_query($con, $query));
+// Prepare output
+$output = array(
+    'draw' => intval($_POST['draw']),
+    'recordsFiltered' => $count,
+    'data' => $data
+);
 
-    $result = mysqli_query($con, $query . $query1);
-
-    confirmQuery($result);
-
-    $data = array();
-
-    $n = 1;
-
-    while($row = mysqli_fetch_assoc($result)){
-
-        $item_name  = $row['Item_name'];
-        $item_qty   = $row['Quantity'];
-        $item_price = $row['Price'];
-
-        $sub_array = array();
-
-        $sub_array[] = substr($item_name, 0, 10)."...";
-        $sub_array[] = $item_qty;
-
-        $g_total = $item_price * $item_qty;
-
-        $sub_array[] = number_format($g_total,2);
-
-        $data[] = $sub_array;
-    }
-
-    $output = array(
-        'draw' => intval($_POST['draw']),
-        'recordsFiltered' => $count,
-        'data' => $data
-    );
-
-    echo json_encode($output);
+echo json_encode($output);
 
 ?>

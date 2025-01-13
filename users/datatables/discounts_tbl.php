@@ -1,86 +1,99 @@
 <?php
 
-    include "../includes/db.php";
-    include "../includes/functions.php";
+include "../includes/db.php";
+include "../includes/functions.php";
 
-    //========================== Checking User IDs ===========================
-        if(isset($_COOKIE['EIMS_emp_Id'])){
+//========================== Checking User IDs ===========================
+if (isset($_COOKIE['EIMS_emp_Id'])) {
+    $emp_Id = $_COOKIE['EIMS_emp_Id'];
+} else {
+    $emp_Id = 0;
+}
+//========================== Checking User IDs END =======================
 
-            $emp_Id = $_COOKIE['EIMS_emp_Id'];
-        }
+$column = array("Disc_name", "Disc_amount");
 
-        else{
+// Base query
+$query = "SELECT trans_disc.Disc_Id, discounts.Disc_name, discounts.Disc_amount 
+          FROM canteen2.trans_disc 
+          LEFT JOIN canteen2.discounts ON trans_disc.Disc_Id = discounts.Disc_Id 
+          WHERE NOT trans_disc.Trans_Id = '' ";
 
-            $emp_Id = 0;
-        }
-    //========================== Checking User IDs END =======================
+$params = [];
 
-    $column = array("Item_name", "Quantity");
+// Add condition for transaction ID
+if ($_POST['transid'] != '') {
+    $trans_Id = $_POST['transid'];
+    $query .= "AND trans_disc.Trans_Id = ? ";
+    $params[] = $trans_Id;
+}
 
-    $query ="SELECT trans_disc.Disc_Id, discounts.Disc_name, discounts.Disc_amount ";
-    $query .="FROM trans_disc LEFT JOIN discounts ";
-    $query .="ON trans_disc.Disc_Id = discounts.Disc_Id ";
-    $query .="WHERE NOT trans_disc.Trans_Id = '' ";
+// Add search filter
+if (isset($_POST["search"]["value"])) {
+    $searchValue = $_POST["search"]["value"];
+    $query .= "AND discounts.Disc_name LIKE ? ";
+    $params[] = "%$searchValue%";
+}
 
-    if($_POST['transid'] != ''){
+// Add ordering
+if (isset($_POST["order"])) {
+    $query .= "ORDER BY " . $column[$_POST['order']['0']['column']] . " " . $_POST['order']['0']['dir'] . " ";
+} else {
+    $query .= "ORDER BY trans_disc.Trans_D_Id DESC ";
+}
 
-        $trans_Id = $_POST['transid'];
+// Add pagination
+$query1 = '';
+if ($_POST["length"] != -1) {
+    $query1 = "OFFSET ? ROWS FETCH NEXT ? ROWS ONLY";
+    $params[] = intval($_POST['start']);
+    $params[] = intval($_POST['length']);
+}
 
-        $query .="AND trans_disc.Trans_Id = '$trans_Id' ";
-    }
+// Count total records
+$countQuery = "SELECT COUNT(*) AS TotalRecords 
+               FROM canteen2.trans_disc 
+               LEFT JOIN canteen2.discounts ON trans_disc.Disc_Id = discounts.Disc_Id 
+               WHERE NOT trans_disc.Trans_Id = '' ";
+$countParams = [];
 
+// Add transaction ID condition for count query
+if ($_POST['transid'] != '') {
+    $countQuery .= "AND trans_disc.Trans_Id = ? ";
+    $countParams[] = $trans_Id;
+}
 
-    if(isset($_POST["search"]["value"])){											
+$countStmt = sqlsrv_query($con, $countQuery, $countParams);
+$countResult = sqlsrv_fetch_array($countStmt, SQLSRV_FETCH_ASSOC);
+$count = $countResult['TotalRecords'];
 
-        $query .='AND discounts.Disc_name LIKE "%'.$_POST["search"]["value"].'%" ';
-    }
+// Execute main query
+$fullQuery = $query . $query1;
+$stmt = sqlsrv_query($con, $fullQuery, $params);
 
-    if(isset($_POST["order"])){
+confirmQuery($stmt);
 
-        $query .='ORDER BY '.$column[$_POST['order']['0']['column']].' '.$_POST['order']['0']['dir']. ' ';
-    } 
+$data = array();
 
-    else{
+// Fetch results
+while ($row = sqlsrv_fetch_array($stmt, SQLSRV_FETCH_ASSOC)) {
+    $disc_name = $row['Disc_name'];
+    $disc_amount = $row['Disc_amount'];
 
-        $query .='ORDER BY trans_disc.Trans_D_Id DESC ';
-    }
+    $sub_array = array();
+    $sub_array[] = $disc_name;
+    $sub_array[] = $disc_amount;
 
-    $query1 ='';
+    $data[] = $sub_array;
+}
 
-    if($_POST["length"] != -1){
+// Prepare output
+$output = array(
+    'draw' => intval($_POST['draw']),
+    'recordsFiltered' => $count,
+    'data' => $data
+);
 
-        $query1 = 'LIMIT ' . $_POST['start'] . ', ' . $_POST['length'];
-    }
-
-    $count = mysqli_num_rows(mysqli_query($con, $query));
-
-    $result = mysqli_query($con, $query . $query1);
-
-    confirmQuery($result);
-
-    $data = array();
-
-    $n = 1;
-
-    while($row = mysqli_fetch_assoc($result)){
-
-        $disc_name      = $row['Disc_name'];
-        $disc_amount    = $row['Disc_amount'];
-
-        $sub_array = array();
-
-        $sub_array[] = $disc_name;
-        $sub_array[] = $disc_amount;
-
-        $data[] = $sub_array;
-    }
-
-    $output = array(
-        'draw' => intval($_POST['draw']),
-        'recordsFiltered' => $count,
-        'data' => $data
-    );
-
-    echo json_encode($output);
+echo json_encode($output);
 
 ?>

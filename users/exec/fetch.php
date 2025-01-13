@@ -121,22 +121,22 @@
         
 
         // =================== Included ===================
-        else if($_POST['action'] == 'order_info'){
-
-            if(isset($_POST['transid'])){
-
+        if ($_POST['action'] == 'order_info') {
+            if (isset($_POST['transid'])) {
                 $trans_Id = $_POST['transid'];
-
-                $query = "SELECT Emp_Id, Pay_amount, Grand_Total, Trans_change, Pay_Method, Date_added, Time_added ";
-                $query .="FROM transactions ";
-                $query .="WHERE Trans_Id = '$trans_Id' ";
-
-                $fetch = mysqli_query($con, $query);
-
-                if($fetch){
-
-                    $row = mysqli_fetch_assoc($fetch);
-
+        
+                // Main transaction query
+                $query = "SELECT Emp_Id, Pay_amount, Grand_Total, Trans_change, Pay_Method, Date_added, Time_added 
+                          FROM canteen2.transactions 
+                          WHERE Trans_Id = ?";
+        
+                // Prepare and execute the first query
+                $params = array($trans_Id);
+                $stmt = sqlsrv_query($con, $query, $params);
+        
+                if ($stmt) {
+                    $row = sqlsrv_fetch_array($stmt, SQLSRV_FETCH_ASSOC);
+        
                     $emp_Id     = $row['Emp_Id'];
                     $pay_amount = $row['Pay_amount'];
                     $g_total    = $row['Grand_Total'];
@@ -144,20 +144,23 @@
                     $pay_method = $row['Pay_Method'];
                     $date_added = $row['Date_added'];
                     $time_added = $row['Time_added'];
-
-                    $date_mod = date('F d, Y', strtotime($date_added)) ." | ". date('h:i A', strtotime($time_added));
-
-                    $query2 = "SELECT Lname, Fname, Mname FROM emp_info WHERE Emp_Id = '$emp_Id' ";
-                    $fetch2 = mysqli_query($con2, $query2);
-
-                    if($fetch2){
-
-                        $row2 = mysqli_fetch_assoc($fetch2);
-
+        
+                    // Format the date and time
+                    $date_mod = date_format($date_added, 'M d, Y') . " | " . date_format($time_added, 'h:i A');
+        
+                    // Query to fetch employee info
+                    $query2 = "SELECT Lname, Fname, Mname FROM Teipi_emp3.emp_info WHERE Emp_Id = ?";
+                    $params2 = array($emp_Id);
+                    $stmt2 = sqlsrv_query($con2, $query2, $params2);
+        
+                    if ($stmt2) {
+                        $row2 = sqlsrv_fetch_array($stmt2, SQLSRV_FETCH_ASSOC);
+        
                         $lname = $row2['Lname'];
                         $fname = $row2['Fname'];
                         $mname = $row2['Mname'];
-
+        
+                        // Create the response array
                         $arr = array(
                             'DateMod' => $date_mod,
                             'Payment' => number_format($pay_amount, 2),
@@ -168,14 +171,14 @@
                             'Fname' => $fname,
                             'Mname' => $mname
                         );
-
+        
+                        // Return JSON response
                         echo json_encode($arr);
                     }
-
-
                 }
             }
         }
+        
 
 
 

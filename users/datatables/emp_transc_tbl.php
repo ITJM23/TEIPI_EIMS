@@ -93,11 +93,25 @@ while ($row = sqlsrv_fetch_array($stmt, SQLSRV_FETCH_ASSOC)) {
     $time_added = isset($row['Time_added']) ? $row['Time_added'] : null;
 
     // Validate and format date and time
-    if ($date_added && strtotime($date_added) && $time_added && strtotime($time_added)) {
-        $formatted_date = date('M d, Y', strtotime($date_added)) . " | " . date('h:i A', strtotime($time_added));
+    if ($date_added && $time_added) {
+        // Check if $date_added and $time_added are DateTime objects
+        if ($date_added instanceof DateTime) {
+            $date_added = $date_added->format('Y-m-d'); // Convert to string in the required format
+        }
+        if ($time_added instanceof DateTime) {
+            $time_added = $time_added->format('H:i:s'); // Convert to string in the required format
+        }
+    
+        // Now process them with strtotime
+        if (strtotime($date_added) && strtotime($time_added)) {
+            $formatted_date = date('M d, Y', strtotime($date_added)) . " | " . date('h:i A', strtotime($time_added));
+        } else {
+            $formatted_date = "Invalid date/time";
+        }
     } else {
         $formatted_date = "Invalid date/time";
     }
+    
 
     // ================== Get employee info =====================
     $query3 = "SELECT Lname, Fname FROM teipi_emp3.emp_info WHERE Emp_Id = ? ";
